@@ -51,8 +51,7 @@ def prompt_to_sql(prompt: str, max_tokens: int = 256, temperature: float = 0.0) 
         logging.debug(f"OpenAI API raw response: {response}")
         sql = extract_sql_from_response(response.choices[0].message.content)
         logging.debug(f"Generated SQL: {sql}")
-        # TEMP: Do not enforce SELECT-only for debugging
         return sql
     except Exception as e:
         logging.error(f"Error generating SQL: {e}")
-        return "SELECT 'Please clarify your question.' AS message;"
+        raise

@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useRouter } from 'next/router';
 
 // Add a type for the result
 type QueryResult = {
@@ -13,24 +14,113 @@ export default function Home() {
   const [currentPage, setCurrentPage] = useState(0); // 0 = most recent
   const [loading, setLoading] = useState(false);
   const [showMaxNotification, setShowMaxNotification] = useState(false);
+  const [showUserMenu, setShowUserMenu] = useState(false);
+  const router = useRouter();
   const maxHistory = 10;
   const maxVisiblePages = 5;
+  const [authLoading, setAuthLoading] = useState(true); // <-- loading state for auth check
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  // Auth check
+  useEffect(() => {
+    const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+    if (!token) {
+      router.replace('/login');
+    } else {
+      fetch('http://localhost:8000/user/queries', {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      })
+        .then(res => {
+          if (res.status === 401) {
+            localStorage.removeItem('token');
+            router.replace('/login');
+            return null;
+          }
+          return res.json();
+        })
+        .then(data => {
+          if (data && Array.isArray(data)) {
+            const backendHistory = data.map(q => ({
+              query: q.prompt,
+              result: { table: q.result || [], chart: [] },
+              timestamp: q.created_at ? new Date(q.created_at) : new Date(),
+            }));
+            setHistory(backendHistory);
+            setCurrentPage(0);
+          }
+        })
+        .catch(() => {});
+      setAuthLoading(false);
+    }
+  }, [router]);
+
+  // Only render main app if authenticated and not loading
+  const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+  if (authLoading) {
+    return <div style={{ color: 'var(--purple)', textAlign: 'center', marginTop: 80 }}>Loading...</div>;
+  }
+  if (!token) {
+    return null;
+  }
+
+  const handleLogout = () => {
+    localStorage.removeItem('token');
+    router.replace('/login');
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!prompt.trim()) return;
-    // Show notification if about to hit or exceed max
     if (history.length >= maxHistory - 1) {
       setShowMaxNotification(true);
     }
     setLoading(true);
+    setErrorMessage(null);
     try {
       const res = await fetch('http://localhost:8000/query', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        },
         body: JSON.stringify({ prompt }),
       });
+
+      if (res.status === 401) {
+        localStorage.removeItem('token');
+        router.replace('/login');
+        return;
+      }
+
+      if (res.status === 502) {
+        setErrorMessage('Sorry, the AI service is temporarily unavailable. Please try again later.');
+        setLoading(false);
+        return;
+      }
+
+      if (!res.ok) {
+        setErrorMessage('An error occurred. Please try again.');
+        setLoading(false);
+        return;
+      }
+
       const data = await res.json();
+      // Check for fallback SQL result
+      if (
+        data &&
+        data.table &&
+        Array.isArray(data.table) &&
+        data.table.length === 1 &&
+        Object.values(data.table[0]).includes('Please clarify your question.')
+      ) {
+        setErrorMessage('Please clarify your question.');
+      } else {
+        setErrorMessage(null);
+      }
       const newEntry: QueryResult = {
         query: prompt,
         result: data,
@@ -41,7 +131,7 @@ export default function Home() {
       setHistory(newHistory);
       setCurrentPage(0);
     } catch (err) {
-      // Optionally show error to user
+      setErrorMessage('Network error. Please try again.');
     }
     setLoading(false);
   };
@@ -94,8 +184,28 @@ export default function Home() {
 
   const selected = history[currentPage];
 
+  // Bulletproof guard for selected/result/table
+  const hasValidResult = selected && selected.result && Array.isArray(selected.result.table);
+
   return (
     <main className="min-h-screen grid place-content-center bg-[var(--black)] text-[var(--text)] text-center" style={{ fontFamily: 'Isra, Arial, sans-serif' }}>
+      {/* User Icon and Menu - always appears when authenticated */}
+      <div style={{ position: 'absolute', top: 24, right: 32 }}>
+        <div
+          style={{ cursor: 'pointer', background: 'var(--panel)', borderRadius: '50%', width: 40, height: 40, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--purple)', fontWeight: 'bold', fontSize: 22 }}
+          onClick={() => setShowUserMenu((v) => !v)}
+          title="Account"
+        >
+          <span role="img" aria-label="user">👤</span>
+        </div>
+        {showUserMenu && (
+          <div style={{ position: 'absolute', top: 48, right: 0, background: 'var(--panel)', border: '1px solid var(--border)', borderRadius: 8, boxShadow: '0 2px 8px rgba(0,0,0,0.2)', zIndex: 1000 }}>
+            <button onClick={handleLogout} style={{ background: 'none', border: 'none', color: 'var(--purple-accent)', fontWeight: 'bold', padding: '12px 24px', cursor: 'pointer', width: '100%', textAlign: 'left', minWidth: 80, whiteSpace: 'nowrap' }}>
+              Log Out
+            </button>
+          </div>
+        )}
+      </div>
       <h1 className="text-4xl font-bold mb-8 headline text-center w-full" style={{ color: 'var(--purple)', fontFamily: 'Simplified Arabic, Arial, sans-serif', fontWeight: 'bold', textAlign: 'center' }}>
         Prompt-to-SQL Tool
       </h1>
@@ -126,8 +236,12 @@ export default function Home() {
           <span className="loader border-[var(--purple)]"></span>
         </div>
       )}
-      {/* Results Table */}
-      {selected && (
+      {/* Error Message Display */}
+      {errorMessage && (
+        <div style={{ color: 'red', marginBottom: 16, fontWeight: 'bold', textAlign: 'center' }}>{errorMessage}</div>
+      )}
+      {/* Results Table - bulletproof guard */}
+      {hasValidResult && (
         <div className="mt-8 bg-[var(--panel)] border border-[var(--border)] rounded-xl shadow-lg p-6 flex flex-col items-center text-center w-full">
           <h3 className="font-semibold mb-4 text-center w-full" style={{ color: 'var(--purple-accent)', textAlign: 'center' }}>Results</h3>
           {selected.result.table.length === 0 ? (

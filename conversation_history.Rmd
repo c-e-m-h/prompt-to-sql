@@ -1,0 +1,215 @@
+---
+title: "Prompt-to-SQL Project Conversation History"
+author: "Chase"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Prompt-to-SQL Project Development History
+
+## Project Overview
+
+This document captures the development conversation for a prompt-to-SQL project that converts natural language queries to SQL and executes them against a PostgreSQL database.
+
+### Tech Stack
+- **Backend**: FastAPI with PostgreSQL
+- **Frontend**: Next.js with React
+- **Authentication**: JWT tokens
+- **Database**: PostgreSQL with SQLAlchemy ORM
+- **AI Integration**: OpenAI API for SQL generation
+
+## Key Issues Encountered
+
+### 1. Git Repository Setup
+- Successfully initialized git repository
+- Encountered LF vs CRLF line ending warnings (normal on Windows)
+- Updated `.gitignore` to include:
+  - `node_modules/`
+  - `frontend/.next/`
+  - `frontend/node_modules/`
+  - `.DS_Store`
+  - `Thumbs.db`
+  - `*.log`
+  - `.env`
+
+### 2. JWT Authentication Implementation
+- Added user registration and login endpoints
+- Implemented password hashing with bcrypt
+- Created JWT token issuance with 8-hour expiration
+- Protected `/query` endpoint with JWT authentication
+- Added `users` table to database schema
+
+### 3. Frontend Authentication
+- Created separate login and register pages
+- Implemented routing to redirect unauthenticated users
+- Added user icon with logout functionality
+- Styled logout button to keep "Log Out" on one line
+
+### 4. Query History Feature
+- Added `queries` table to store user query history
+- Created SQLAlchemy model for queries
+- Implemented endpoint to fetch last 10 queries per user
+- Backend saves each query automatically
+
+## Current Issues
+
+### 1. React Crash - `.length` Error
+**Problem**: React crashes when accessing `.length` on undefined data
+**Error**: `Cannot read properties of undefined (reading 'length')`
+**Location**: Frontend when rendering query results
+**Status**: Partially resolved with guards, but still occurring
+
+**Solution Attempts**:
+- Added guards to prevent accessing `.length` on undefined
+- Implemented stronger redirect logic
+- Added checks before rendering query results
+
+### 2. 401 Unauthorized Errors on `/query`
+**Problem**: Backend returns 401 Unauthorized when calling `/query` endpoint
+**Error**: "Invalid token" or 401 status
+**Status**: Ongoing issue
+
+**Debugging Steps**:
+- Verified JWT token is being sent in Authorization header
+- Confirmed token format: `Bearer <token>`
+- Checked JWT_SECRET consistency (using default value)
+- Verified token is copied exactly from login response
+- Tested with Postman to isolate frontend vs backend issues
+
+**Common Causes Identified**:
+- Missing or malformed Authorization header
+- Token not copied exactly from login response
+- JWT_SECRET mismatch between token creation and verification
+- Token expiration (8-hour limit)
+- Frontend not sending token correctly
+
+### 3. Query Results Not Populating
+**Problem**: Login works, tokens received, but query results don't appear
+**Status**: Related to 401 errors above
+
+**Backend Flow**:
+1. Receive natural language query
+2. Call OpenAI API to generate SQL
+3. Execute SQL against PostgreSQL
+4. Return results to frontend
+
+**Potential Issues**:
+- OpenAI API key not configured
+- SQL generation failing
+- Database connection issues
+- Results not being returned properly
+
+## Current Project State
+
+### Backend Status
+- ✅ FastAPI server running
+- ✅ PostgreSQL database connected
+- ✅ User authentication endpoints working
+- ✅ JWT token generation working
+- ✅ Query history storage implemented
+- ❌ `/query` endpoint returning 401 errors
+- ❌ OpenAI integration not tested
+
+### Frontend Status
+- ✅ Login/register pages working
+- ✅ JWT token storage working
+- ✅ User authentication flow working
+- ✅ Logout functionality working
+- ❌ Query results not displaying
+- ❌ React crashes on undefined data
+
+### Database Status
+- ✅ `users` table created
+- ✅ `queries` table created
+- ✅ User registration working
+- ✅ Query history storage working
+
+## Environment Variables Needed
+
+```bash
+# Backend (.env)
+DATABASE_URL=postgresql://username:password@localhost:5432/database_name
+OPENAI_API_KEY=your_openai_api_key_here
+JWT_SECRET=your_jwt_secret_here
+
+# Frontend (.env.local)
+NEXT_PUBLIC_API_URL=http://localhost:8000
+```
+
+## Next Steps After Windows Reinstall
+
+1. **Clone Repository**: `git clone <your-repo-url>`
+2. **Install Dependencies**:
+   - Backend: `pip install -r requirements.txt`
+   - Frontend: `cd frontend && npm install`
+3. **Set Up Environment Variables**
+4. **Start Services**:
+   - Database: `docker-compose up -d`
+   - Backend: `uvicorn main:app --reload`
+   - Frontend: `npm run dev`
+5. **Debug 401 Errors**:
+   - Check JWT token sending
+   - Verify OpenAI API key
+   - Test with Postman
+6. **Fix React Crashes**:
+   - Add bulletproof guards for undefined data
+   - Prevent UI flash before redirect
+
+## Postman Testing Instructions
+
+### Login Request
+```
+POST http://localhost:8000/login
+Headers:
+  Content-Type: application/json
+Body:
+{
+  "username": "your_username",
+  "password": "your_password"
+}
+```
+
+### Query Request
+```
+POST http://localhost:8000/query
+Headers:
+  Content-Type: application/json
+  Authorization: Bearer <token_from_login>
+Body:
+{
+  "query": "Show me all users"
+}
+```
+
+## Key Files to Check
+
+### Backend
+- `backend/main.py` - Main FastAPI app
+- `backend/models.py` - SQLAlchemy models
+- `backend/database.py` - Database connection
+- `backend/auth.py` - JWT authentication
+
+### Frontend
+- `frontend/pages/login.js` - Login page
+- `frontend/pages/register.js` - Register page
+- `frontend/pages/index.js` - Main app page
+- `frontend/components/QueryForm.js` - Query form component
+
+### Configuration
+- `docker-compose.yml` - Database setup
+- `.env` - Backend environment variables
+- `frontend/.env.local` - Frontend environment variables
+
+## Notes for Restart
+
+- The project is functional for authentication but has issues with query execution
+- Main blocker is 401 errors on `/query` endpoint
+- React crashes need more robust error handling
+- OpenAI integration needs verification
+- All code is committed to git repository
+
+This conversation history should help you quickly get back to where we left off after reinstalling Windows. 

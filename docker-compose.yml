@@ -29,4 +29,4 @@ services:
       - "5432:5432"
     volumes:
       - ./data/seed_ecommerce.sql:/docker-entrypoint-initdb.d/seed_ecommerce.sql
-      - ./data:/data 
+      - ./pgdata:/var/lib/postgresql/data 

@@ -44,4 +44,15 @@ Next.js UI (table + chart)
 - [ ] Adding more sample data or analytics features
 
 ---
+
+## ⚠️ Important: Database Persistence & Reset
+
+- **User accounts, query history, and all new data are now stored persistently in the `./pgdata` folder.**
+- **To reset the database to a clean state (removing all users, queries, etc.):**
+  1. Stop your containers: `docker-compose down`
+  2. Delete the `./pgdata` folder: `rm -rf ./pgdata` (or delete manually)
+  3. Restart: `docker-compose up --build`
+- The database will be reseeded from `data/seed_ecommerce.sql` on next startup.
+
+---
 *For demo use only. Not production-ready.* 

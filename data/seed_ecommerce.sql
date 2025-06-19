@@ -27,6 +27,21 @@ CREATE TABLE orders (
     status      TEXT
 );
 
+CREATE TABLE users (
+    id SERIAL PRIMARY KEY,
+    username TEXT UNIQUE NOT NULL,
+    hashed_password TEXT NOT NULL
+);
+
+CREATE TABLE queries (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER REFERENCES users(id),
+    prompt TEXT NOT NULL,
+    sql TEXT NOT NULL,
+    result JSONB,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
 INSERT INTO products (id,name,category,launch_date) VALUES
      (1,'Vintage Hoodie','Apparel','2024-01-01'),
      (2,'Bluetooth Earbuds','Electronics','2024-06-15'),
