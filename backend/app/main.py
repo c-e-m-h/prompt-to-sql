@@ -54,28 +54,39 @@ def login(request: LoginRequest):
 def query_endpoint(request: QueryRequest, user: User = Depends(get_current_user)):
     try:
         sql = prompt_to_sql(request.prompt)
-    except Exception:
+        if sql.strip() == "SELECT 'Please clarify your question.' AS message;":
+            raise HTTPException(status_code=400, detail="Unsupported prompt")
+    except RuntimeError:
         raise HTTPException(status_code=502, detail="OpenAI API error. Please try again later.")
     with SessionLocal() as db:
-        result = db.execute(text(sql))
-        columns = result.keys()
-        rows = [dict(zip(columns, row)) for row in result.fetchall()]
+        try:
+            result = db.execute(text(sql))
+            columns = result.keys()
+            rows = [dict(zip(columns, row)) for row in result.fetchall()]
+        except Exception as e:
+            raise HTTPException(status_code=400, detail=f"Schema mismatch or invalid SQL: {e}")
         # Save query to DB
-        q = Query(user_id=user.id, prompt=request.prompt, sql=sql, result=rows)
+        q = Query(user_id=user.id, prompt_text=request.prompt, sql_text=sql, result=rows)
         db.add(q)
         db.commit()
-    return {"table": rows, "chart": []}  # TODO: Add chart data logic
+    return {"table": rows, "chart": [], "sql": sql}  # TODO: Add chart data logic
 
 @app.get("/user/queries")
 def get_user_queries(user: User = Depends(get_current_user)):
     with SessionLocal() as db:
-        queries = db.query(Query).filter(Query.user_id == user.id).order_by(Query.created_at.desc()).limit(10).all()
+        queries = (
+            db.query(Query)
+            .filter(Query.user_id == user.id)
+            .order_by(Query.created_at.desc())
+            .limit(10)
+            .all()
+        )
         return [
             {
-                "prompt": q.prompt,
-                "sql": q.sql,
+                "prompt": q.prompt_text,
+                "sql": q.sql_text,
                 "result": q.result,
-                "created_at": q.created_at.isoformat() if q.created_at else None
+                "created_at": q.created_at.isoformat() if q.created_at else None,
             }
             for q in queries
         ]
