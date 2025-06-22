@@ -14,7 +14,7 @@ class Query(Base):
     __tablename__ = "queries"
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"))
-    prompt = Column(Text, nullable=False)
-    sql = Column(Text, nullable=False)
+    prompt_text = Column(Text, nullable=False)
+    sql_text = Column(Text, nullable=False)
     result = Column(JSON)
-    created_at = Column(DateTime, default=datetime.datetime.utcnow) 
+    created_at = Column(DateTime, default=datetime.datetime.utcnow)

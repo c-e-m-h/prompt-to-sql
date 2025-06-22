@@ -5,6 +5,25 @@ import os
 import openai
 import logging
 import re
+from sqlalchemy import inspect
+from db import engine
+
+
+def get_schema_description() -> str:
+    """Introspect the database and return a simple schema description."""
+    try:
+        inspector = inspect(engine)
+        lines = []
+        for table in inspector.get_table_names():
+            cols = inspector.get_columns(table)
+            col_desc = ", ".join(f"{c['name']} ({c['type']})" for c in cols)
+            lines.append(f"Table {table}: {col_desc}")
+        schema = "\n".join(lines)
+        logging.debug(f"Introspected schema: {schema}")
+        return schema
+    except Exception as e:
+        logging.error(f"Schema introspection failed: {e}")
+        return ""
 
 openai.api_key = os.getenv("OPENAI_API_KEY")
 logging.basicConfig(level=logging.DEBUG)
@@ -24,15 +43,13 @@ def prompt_to_sql(prompt: str, max_tokens: int = 256, temperature: float = 0.0) 
         logging.warning("Prompt is empty or whitespace.")
         return "SELECT 'Please clarify your question.' AS message;"
 
+    schema_description = get_schema_description()
     system_message = (
         "You are an expert SQL analyst with up-to-date knowledge of PostgreSQL. "
         "Given a user's question and the following database schema, generate a syntactically correct SQL query for PostgreSQL. "
         "Return only the SQL query, no explanation.\n"
         "\n"
-        "Schema:\n"
-        "Table customers: id (int), name (text), state (text)\n"
-        "Table products: id (int), name (text), category (text), launch_date (date)\n"
-        "Table orders: id (int), customer_id (int), product_id (int), order_date (date), amount (numeric), status (text)\n"
+        f"Schema:\n{schema_description}\n"
         "\n"
         "The database is PostgreSQL. Use PostgreSQL SQL syntax."
     )
@@ -54,4 +71,4 @@ def prompt_to_sql(prompt: str, max_tokens: int = 256, temperature: float = 0.0) 
         return sql
     except Exception as e:
         logging.error(f"Error generating SQL: {e}")
-        raise
+        raise RuntimeError("openai_error") from e

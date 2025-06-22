@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from 'react';
+import PipelineBuilder, { PipelineStep } from '../components/PipelineBuilder';
+import GridBackground from '../components/GridBackground';
 import { useRouter } from 'next/router';
 
 // Add a type for the result
@@ -6,6 +8,8 @@ type QueryResult = {
   query: string;
   result: { table: any[]; chart: any[] };
   timestamp: Date;
+  sql?: string;
+  id?: number;
 };
 
 export default function Home() {
@@ -15,6 +19,8 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [showMaxNotification, setShowMaxNotification] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
+  const [pipelineSteps, setPipelineSteps] = useState<PipelineStep[]>([]);
+  const [darkMode, setDarkMode] = useState(true);
   const router = useRouter();
   const maxHistory = 10;
   const maxVisiblePages = 5;
@@ -44,12 +50,17 @@ export default function Home() {
         })
         .then(data => {
           if (data && Array.isArray(data)) {
-            const backendHistory = data.map(q => ({
+            const backendHistory = data.map((q: any, idx: number) => ({
               query: q.prompt,
               result: { table: q.result || [], chart: [] },
               timestamp: q.created_at ? new Date(q.created_at) : new Date(),
+              sql: q.sql,
+              id: idx,
             }));
             setHistory(backendHistory);
+            setPipelineSteps(
+              backendHistory.map((h, i) => ({ id: i, sql: h.sql || '' }))
+            );
             setCurrentPage(0);
           }
         })
@@ -57,6 +68,12 @@ export default function Home() {
       setAuthLoading(false);
     }
   }, [router]);
+
+  useEffect(() => {
+    if (typeof document !== 'undefined') {
+      document.documentElement.dataset.theme = darkMode ? 'dark' : 'light';
+    }
+  }, [darkMode]);
 
   // Only render main app if authenticated and not loading
   const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
@@ -102,6 +119,13 @@ export default function Home() {
         return;
       }
 
+      if (res.status === 400) {
+        const dataErr = await res.json();
+        setErrorMessage(dataErr.detail || 'Unsupported prompt or schema mismatch.');
+        setLoading(false);
+        return;
+      }
+
       if (!res.ok) {
         setErrorMessage('An error occurred. Please try again.');
         setLoading(false);
@@ -125,10 +149,13 @@ export default function Home() {
         query: prompt,
         result: data,
         timestamp: new Date(),
+        sql: data.sql,
+        id: Date.now(),
       };
       let newHistory = [newEntry, ...history];
       if (newHistory.length > maxHistory) newHistory = newHistory.slice(0, maxHistory);
       setHistory(newHistory);
+      setPipelineSteps([{ id: newEntry.id!, sql: data.sql }, ...pipelineSteps]);
       setCurrentPage(0);
     } catch (err) {
       setErrorMessage('Network error. Please try again.');
@@ -188,9 +215,17 @@ export default function Home() {
   const hasValidResult = selected && selected.result && Array.isArray(selected.result.table);
 
   return (
-    <main className="min-h-screen grid place-content-center bg-[var(--black)] text-[var(--text)] text-center" style={{ fontFamily: 'Isra, Arial, sans-serif' }}>
+    <main className="min-h-screen grid place-content-center bg-[var(--black)] text-[var(--text)] text-center" style={{ fontFamily: 'var(--font-body)', position: 'relative', overflow: 'hidden' }}>
+      <GridBackground darkMode={darkMode} />
       {/* User Icon and Menu - always appears when authenticated */}
-      <div style={{ position: 'absolute', top: 24, right: 32 }}>
+      <div style={{ position: 'absolute', top: 24, right: 32, display: 'flex', gap: 16 }}>
+        <button
+          onClick={() => setDarkMode((d) => !d)}
+          style={{ cursor: 'pointer', background: 'var(--panel)', borderRadius: '50%', width: 40, height: 40, display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid var(--border)', color: 'var(--purple)' }}
+          title="Toggle theme"
+        >
+          {darkMode ? '☀️' : '🌙'}
+        </button>
         <div
           style={{ cursor: 'pointer', background: 'var(--panel)', borderRadius: '50%', width: 40, height: 40, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--purple)', fontWeight: 'bold', fontSize: 22 }}
           onClick={() => setShowUserMenu((v) => !v)}
@@ -206,13 +241,13 @@ export default function Home() {
           </div>
         )}
       </div>
-      <h1 className="text-4xl font-bold mb-8 headline text-center w-full" style={{ color: 'var(--purple)', fontFamily: 'Simplified Arabic, Arial, sans-serif', fontWeight: 'bold', textAlign: 'center' }}>
+      <h1 className="text-4xl font-bold mb-8 headline text-center w-full" style={{ color: 'var(--purple)', textAlign: 'center' }}>
         Prompt-to-SQL Tool
       </h1>
       <form
         className="flex flex-col items-center text-center w-full"
         onSubmit={handleSubmit}
-        style={{ fontFamily: 'Isra, Arial, sans-serif', width: '100%' }}
+        style={{ width: '100%' }}
       >
         <input
           className="min-h-[64px] px-8 py-5 mb-4 rounded-md border border-[var(--border)] focus:outline-none focus:ring-2 focus:ring-[var(--purple)] text-center text-lg placeholder-[var(--text-muted)] bg-[var(--text)] text-[var(--black)] w-full"
@@ -220,13 +255,13 @@ export default function Home() {
           placeholder="Ask a question about your dataset..."
           value={prompt}
           onChange={(e) => setPrompt(e.target.value)}
-          style={{ fontFamily: 'Isra, Arial, sans-serif', width: 400, textAlign: 'center', margin: '0 auto', display: 'block' }}
+          style={{ width: 400, textAlign: 'center', margin: '0 auto', display: 'block' }}
         />
         <button
           className="py-3 px-8 rounded-md bg-[var(--purple)] hover:bg-[var(--purple-accent)] transition-colors text-[var(--text)] font-semibold shadow text-lg mt-2 text-center"
           type="submit"
           disabled={loading}
-          style={{ fontFamily: 'Isra, Arial, sans-serif', textAlign: 'center', margin: '0 auto', display: 'block', marginTop: 24 }}
+          style={{ textAlign: 'center', margin: '0 auto', display: 'block', marginTop: 24 }}
         >
           Run
         </button>
@@ -331,6 +366,12 @@ export default function Home() {
           <div>
             Time: <span title={formatFull(selected.timestamp)}>{formatTime(selected.timestamp)}</span>
           </div>
+        </div>
+      )}
+      {pipelineSteps.length > 0 && (
+        <div style={{ marginTop: 32, width: '100%' }}>
+          <h3 style={{ color: 'var(--purple-accent)', textAlign: 'center', marginBottom: 8 }}>Pipeline</h3>
+          <PipelineBuilder steps={pipelineSteps} onChange={setPipelineSteps} />
         </div>
       )}
       {/* Max Results Notification */}
