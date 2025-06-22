@@ -1,5 +1,12 @@
 # test_api.py
 # Basic unit tests for the FastAPI API
+import os
+import sys
+import pytest
+
+pytest.importorskip("httpx")
+
+sys.path.append(os.path.dirname(__file__))
 from fastapi.testclient import TestClient
 from main import app
 
@@ -16,6 +23,7 @@ def test_query():
     assert resp.status_code == 200
     data = resp.json()
     assert "table" in data
+    assert "sql" in data
     assert isinstance(data["table"], list)
     print("Query endpoint test passed.")
 

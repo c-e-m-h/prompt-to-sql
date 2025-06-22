@@ -1,5 +1,12 @@
 # test_agent.py
 # Basic unit tests for the agent logic
+import os
+import sys
+import pytest
+
+pytest.importorskip("httpx")
+
+sys.path.append(os.path.dirname(__file__))
 from agent import prompt_to_sql
 
 def test_prompt_to_sql():
@@ -12,4 +19,4 @@ def test_prompt_to_sql():
     print("Agent fallback test passed.")
 
 if __name__ == "__main__":
-    test_prompt_to_sql() 
+    test_prompt_to_sql()
