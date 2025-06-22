@@ -36,8 +36,8 @@ CREATE TABLE users (
 CREATE TABLE queries (
     id SERIAL PRIMARY KEY,
     user_id INTEGER REFERENCES users(id),
-    prompt TEXT NOT NULL,
-    sql TEXT NOT NULL,
+    prompt_text TEXT NOT NULL,
+    sql_text TEXT NOT NULL,
     result JSONB,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
